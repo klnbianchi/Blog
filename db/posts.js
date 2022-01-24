@@ -1,4 +1,5 @@
 const { client } = require("./client");
+const { createComment } = require("./comment");
 
 async function createPost({
   author_id,
@@ -7,6 +8,7 @@ async function createPost({
   published_time,
   likes,
   status,
+  comments = []
 }) {
   try {
     const {
@@ -19,8 +21,9 @@ RETURNING *;
 `,
       [author_id, title, content, published_time, likes, status]
     );
+    const commentList = await createComment(comments);
 
-    return post;
+    return await addCommentToPost(post.id, commentList);
   } catch (err) {
     console.error(err);
   }
@@ -39,14 +42,47 @@ async function getAllPosts() {
   }
 }
 
+async function createPostComment(post_id, comment_id){
+    try{
+await client.query(`
+INSERT INTO post_comment(post_id, comment_id)
+VALUES ($1, $2);
+`, [post_id, comment_id]);
+    }catch(err){
+        console.error(err);
+    }
+}
+
+async function addCommentToPost(post_id, commentList) {
+  try {
+     const createPostCommentPromises = commentList.map(comment=>createPostComment(post_id,comment.id));
+     await Promise.all(createPostCommentPromises);
+     return await getPostById(post_id);
+      }catch (err) {
+    console.error(err);
+  }
+}
+
 async function getPostById(id) {
   try {
-      const {rows:[post]}= await client.query(`
+    const {
+      rows: [post],
+    } = await client.query(`
       SELECT *
       FROM post
       WHERE id = $1;
-      `);
-      return post;
+      `,[id]);
+    //add comment to post
+const {rows: comments}= await client.query(`
+SELECT comment.*
+FROM comment
+JOIN post_comment ON comment.id = post_comment.comment_id
+WHERE post_comment.post_id = $1;
+`,[id]);
+
+post.comments = comments;
+
+return post;
   } catch (err) {
     console.error(err);
   }
@@ -54,13 +90,16 @@ async function getPostById(id) {
 
 async function getPostByUser(id) {
   try {
-      const {rows} = await client.query(`
+    const { rows } = await client.query(
+      `
       SELECT *
       FROM post
       WHERE author_id = $1;
-      `,[id]);
+      `,
+      [id]
+    );
 
-      return rows;
+    return rows;
   } catch (err) {
     console.error(err);
   }
@@ -80,16 +119,21 @@ function dbFields(fields) {
 }
 
 async function updatePost(id, { ...fields }) {
-    const { insert, vals } = dbFields(fields);
+  const { insert, vals } = dbFields(fields);
   try {
-      const {rows:[updatedPost]}= await client.query(`
+    const {
+      rows: [updatedPost],
+    } = await client.query(
+      `
       UPDATE post
       SET ${insert}
       WHERE id= ${id}
       RETURNING *;
-      `,vals);
+      `,
+      vals
+    );
 
-      return updatedPost;
+    return updatedPost;
   } catch (err) {
     console.error(err);
   }
@@ -97,13 +141,18 @@ async function updatePost(id, { ...fields }) {
 
 async function destroyPost(id) {
   try {
-      const {rows:[deletedPost]}= await client.query(`
+    const {
+      rows: [deletedPost],
+    } = await client.query(
+      `
       DELETE
       FROM post
       WHERE id = $1;
-      `,[id]);
+      `,
+      [id]
+    );
 
-      return deletedPost;
+    return deletedPost;
   } catch (err) {
     console.error(err);
   }

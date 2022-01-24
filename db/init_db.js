@@ -1,6 +1,8 @@
 // code to build and initialize DB goes here
 const { client } = require("./client");
-const {createUser} = require('./');
+const { createUser } = require("./");
+const { createPost, getPostById } = require("./posts");
+const {createComment} = require("./comment");
 
 async function dropTables() {
   try {
@@ -9,6 +11,7 @@ async function dropTables() {
 DROP TABLE IF EXISTS followers;
 DROP TABLE IF EXISTS post_tag;
 DROP TABLE IF EXISTS tag;
+DROP TABLE IF EXISTS post_comment;
 DROP TABLE IF EXISTS comment;
 DROP TABLE IF EXISTS post;
 DROP TABLE IF EXISTS users;
@@ -46,6 +49,10 @@ async function createTables() {
     content VARCHAR(255) NOT NULL,
     is_approved BOOLEAN DEFAULT false
   );
+  CREATE TABLE post_comment(
+    post_id INTEGER REFERENCES post(id),
+    comment_id INTEGER REFERENCES comment(id)
+  );
   CREATE TABLE tag(
     id SERIAL PRIMARY KEY,
     content VARCHAR(255)
@@ -76,7 +83,7 @@ async function buildTables() {
   }
 }
 
-async function populateInitialData() {
+async function createInitialUsers() {
   console.log("starting to create initial users...");
   try {
     const newUsers = [
@@ -110,7 +117,82 @@ async function populateInitialData() {
     console.log(users);
     console.log("Finished creating users!");
   } catch (error) {
-    console.error('Error creating users!')
+    console.error("Error creating users!");
+    throw error;
+  }
+}
+
+async function createInitialPosts (){
+  try{
+    console.log('Starting to create initial posts...')
+    const newPosts = [
+      {
+        author_id: 1,
+        title: 'My first post',
+        content: 'This post is about creating a new post...',
+        published_time: '2022-01-24 19:10:25',
+        likes:0,
+        status: true
+      },
+      {
+        author_id: 2,
+        title: 'I am posting!',
+        content: 'testing testing 123...',
+        published_time: '2022-01-24 19:10:29',
+        likes:0,
+        status: true
+      }
+
+    ]
+    const posts = await Promise.all(newPosts.map(createPost));
+    console.log('Posts created:');
+    console.log(posts);
+    console.log('Finished creating posts!');
+
+    const testing = await getPostById(1);
+    console.log(testing, "!!!!!")
+  }catch(error){
+    console.error('Error creating posts!');
+    throw error;
+  }
+}
+
+async function createInitialComments(){
+  try{
+    console.log('Starting to create comments');
+    const commentsToCreate=[
+      {
+        author_id: 4,
+        post_id:1,
+        content:'Wow, this is a great post!',
+        is_approved: true
+      },
+      {
+        author_id: 3,
+        post_id:1,
+        content:'Here is another comment on this post',
+        is_approved: true
+      },
+
+    ]
+
+    const comments = await Promise.all(commentsToCreate.map(createComment));
+    console.log('Comments created:')
+    console.log(comments);
+    console.log('Finished creating comments:')
+    
+    
+  }catch(error){
+    console.error('Error creating comments!');
+    throw error;
+  }
+}
+async function populateInitialData(){
+  try{
+    await createInitialUsers();
+    await createInitialPosts();
+    await createInitialComments();
+  }catch(error){
     throw error;
   }
 }
